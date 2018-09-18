@@ -7,19 +7,83 @@
 //
 
 import UIKit
+import CoreML
+import Vision
 
-class ViewController: UIViewController {
+class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
 
+    
+    @IBOutlet weak var imageView: UIImageView!
+    
+    let imagePicker = UIImagePickerController()
+    
+    
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Do any additional setup after loading the view, typically from a nib.
+        
+        imagePicker.delegate = self
+        imagePicker.sourceType = .photoLibrary
+        imagePicker.allowsEditing = false
     }
+    
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+// Local variable inserted by Swift 4.2 migrator.
+let info = convertFromUIImagePickerControllerInfoKeyDictionary(info)
 
-    override func didReceiveMemoryWarning() {
-        super.didReceiveMemoryWarning()
-        // Dispose of any resources that can be recreated.
+        
+        if let userPickedImage = info[convertFromUIImagePickerControllerInfoKey(UIImagePickerController.InfoKey.originalImage)] as? UIImage {
+            
+            imageView.image = userPickedImage
+            
+            guard let ciimage = CIImage(image: userPickedImage) else {
+                fatalError("ERROR Couldn't convert UIImage into CIImage")
+            }
+            
+            detect(image: ciimage)
+        }
+        
+        dismiss(animated: true, completion: nil)
     }
-
-
+    
+    func detect(image: CIImage) {
+        
+        guard let coreMLModel = try? VNCoreMLModel(for: Inceptionv3().model) else {
+            fatalError("ERROR Loading CoreML Model")
+        }
+        
+        let coreMLRequest = VNCoreMLRequest(model: coreMLModel) { (request, error) in
+            guard let results = request.results as? [VNClassificationObservation] else {
+                fatalError("ERROR Model failed to process image")
+            }
+            
+            print(results)
+        }
+        
+        let handler = VNImageRequestHandler(ciImage: image)
+        
+        do {
+            try handler.perform([coreMLRequest])
+        }
+        catch {
+            print("ERROR Can't perform request \(error)")
+        }
+    }
+    
+    @IBAction func cameraTapped(_ sender: UIBarButtonItem) {
+        
+        present(imagePicker, animated: true, completion: nil)
+    }
+    
+    
 }
 
+
+// Helper function inserted by Swift 4.2 migrator.
+fileprivate func convertFromUIImagePickerControllerInfoKeyDictionary(_ input: [UIImagePickerController.InfoKey: Any]) -> [String: Any] {
+	return Dictionary(uniqueKeysWithValues: input.map {key, value in (key.rawValue, value)})
+}
+
+// Helper function inserted by Swift 4.2 migrator.
+fileprivate func convertFromUIImagePickerControllerInfoKey(_ input: UIImagePickerController.InfoKey) -> String {
+	return input.rawValue
+}
